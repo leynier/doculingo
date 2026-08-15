@@ -72,10 +72,10 @@ jobs:
 
           if [ -n "$PREVIOUS_TAG" ]; then
             # Generate changelog from the last tag
-            git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG..HEAD" >> release_notes.md
+            git log --pretty=tformat:"- %s (%h)" "$PREVIOUS_TAG..HEAD" >> release_notes.md
           else
             # If there are no previous tags, use the latest commits
-            git log --pretty=format:"- %s (%h)" -10 >> release_notes.md
+            git log --pretty=tformat:"- %s (%h)" -10 >> release_notes.md
           fi
 
           # Read the content for the output
