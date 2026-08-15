@@ -20,7 +20,7 @@ def test_help_without_api_key(monkeypatch: MonkeyPatch) -> None:
 
 def test_word_help_without_api_key(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    result = runner.invoke(app, ["word", "--help"])
+    result = runner.invoke(app, ["word", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
     assert "--model" in result.output
     assert "--retries" in result.output
