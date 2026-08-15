@@ -1,6 +1,13 @@
 from typer import Typer
 
-from .word import app as word_app
+from .word import main as word_main
 
 app = Typer(no_args_is_help=True)
-app.add_typer(word_app, name="word")
+
+
+@app.callback()
+def callback() -> None:
+    """Translate documents using LLMs."""
+
+
+app.command(name="word")(word_main)

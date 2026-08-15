@@ -1,7 +1,19 @@
+.PHONY: install test format lint type-check build
+
 install:
 	uv sync --all-groups --all-extras
 
-tests: install
+test: install
+	uv run pytest
+
+format:
+	uv run ruff format .
+
+lint:
 	uv run ruff check .
-	uv run ruff format --check .
-	uv run pytest -q
+
+type-check:
+	uv run mypy doculingo
+
+build:
+	uv build

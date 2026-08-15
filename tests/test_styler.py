@@ -1,10 +1,6 @@
-# ruff: noqa: E402
-import os
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches, Pt, RGBColor
-
-os.environ.setdefault("OPENAI_API_KEY", "test")
 
 from doculingo.word.styler import copy_paragraph_style, copy_run_style
 

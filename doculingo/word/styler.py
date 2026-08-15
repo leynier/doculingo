@@ -23,9 +23,7 @@ def copy_paragraph_style(para: Paragraph, new_para: Paragraph) -> None:
     new_para.paragraph_format.line_spacing = para.paragraph_format.line_spacing
     new_para.paragraph_format.keep_together = para.paragraph_format.keep_together
     new_para.paragraph_format.keep_with_next = para.paragraph_format.keep_with_next
-    new_para.paragraph_format.page_break_before = (
-        para.paragraph_format.page_break_before
-    )
+    new_para.paragraph_format.page_break_before = para.paragraph_format.page_break_before
     new_para.paragraph_format.widow_control = para.paragraph_format.widow_control
     new_para.style = para.style
     if para.alignment:

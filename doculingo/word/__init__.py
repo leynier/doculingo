@@ -2,17 +2,28 @@ from pathlib import Path
 from typing import Annotated
 
 from docx import Document
-from typer import Option, Typer
+from docx.text.paragraph import Paragraph
+from typer import BadParameter, Exit, Option, echo
 
-from ..common.translators import Translator, get_translator
+from ..common.errors import TranslationError
+from ..common.translators import DEFAULT_MODEL, DEFAULT_RETRIES, Translator, get_translator
 from .styler import copy_paragraph_style, copy_run_style
 
-app = Typer(no_args_is_help=True)
+
+def _paragraph_text(para: Paragraph) -> str:
+    """Return the text of a paragraph, preferring the single run when possible."""
+    if len(para.runs) == 1:
+        return para.runs[0].text
+    return para.text
 
 
-@app.callback()
+def _translatable_texts(paragraphs: list[Paragraph]) -> list[str]:
+    """Return the non-blank texts of the paragraphs, in order."""
+    return [text for text in map(_paragraph_text, paragraphs) if text.strip()]
+
+
 def main(
-    input: Annotated[
+    input_path: Annotated[
         Path,
         Option(
             "--input",
@@ -23,8 +34,8 @@ def main(
             help="Input file path",
         ),
     ],
-    output: Annotated[
-        str,
+    output_path: Annotated[
+        Path,
         Option(
             "--output",
             "-o",
@@ -54,57 +65,68 @@ def main(
             case_sensitive=False,
         ),
     ] = Translator.openai,
-):
-    translate = get_translator(translator)
-    texts: list[str] = []
-    doc = Document(str(input))
-    print(f"Total paragraphs: {len(doc.paragraphs)}")
-    for i, para in enumerate(doc.paragraphs):
-        print(f"Paragraph {i + 1} of {len(doc.paragraphs)}")
-        if len(para.runs) == 1:
-            text = para.runs[0].text
-            if text.strip():
-                texts.append(text)
-            continue
-        text = para.text
-        if text.strip():
-            texts.append(text)
-    step = max(1, len(texts) // 100)
-    print(f"Total texts: {len(texts)}")
-    texts = [
-        text
-        for i in range(0, len(texts), step)
-        for text in translate(
-            texts[i : i + step],
-            language_source,
-            language_target,
+    model: Annotated[
+        str,
+        Option(
+            "--model",
+            help="Model used by the translator (only OpenAI for now).",
+        ),
+    ] = DEFAULT_MODEL,
+    retries: Annotated[
+        int,
+        Option(
+            "--retries",
+            min=1,
+            help="Number of retries after the first failed translation attempt.",
+        ),
+    ] = DEFAULT_RETRIES,
+) -> None:
+    if input_path.suffix.lower() != ".docx":
+        raise BadParameter(
+            f"Input file must be a .docx file, got '{input_path.name}'",
+            param_hint="--input",
         )
-    ]
-    print(f"Total translated texts: {len(texts)}")
+    translate = get_translator(translator, model=model, retries=retries)
+    doc = Document(str(input_path))
+    paragraphs = list(doc.paragraphs)
+    texts = _translatable_texts(paragraphs)
+    print(f"Total paragraphs: {len(paragraphs)}")
+    print(f"Total texts: {len(texts)}")
+    translated: list[str] = []
+    try:
+        step = max(1, len(texts) // 100)
+        for start in range(0, len(texts), step):
+            batch = texts[start : start + step]
+            result = translate(batch, language_source, language_target)
+            if len(result) != len(batch):
+                raise TranslationError(
+                    f"The translator returned {len(result)} texts for a batch of {len(batch)} texts"
+                )
+            translated.extend(result)
+    except (TranslationError, RuntimeError) as error:
+        echo(f"Error: {error}", err=True)
+        raise Exit(code=1) from error
+    print(f"Total translated texts: {len(translated)}")
     translated_doc = Document()
     index = 0
-    for para in doc.paragraphs:
+    for para in paragraphs:
         if len(para.runs) == 1:
             text = para.runs[0].text
             if text.strip():
-                translated_text = texts[index]
+                text = translated[index]
                 index += 1
-            else:
-                translated_text = text
             new_para = translated_doc.add_paragraph()
             copy_paragraph_style(para, new_para)
-            new_run = new_para.add_run(translated_text)
+            new_run = new_para.add_run(text)
             copy_run_style(para.runs[0], new_run)
             continue
         text = para.text
         if text.strip():
-            translated_text = texts[index]
+            text = translated[index]
             index += 1
-        else:
-            translated_text = text
-        new_para = translated_doc.add_paragraph(translated_text)
+        new_para = translated_doc.add_paragraph(text)
         copy_paragraph_style(para, new_para)
-    Path(output).parent.mkdir(parents=True, exist_ok=True)
-    if not output.endswith(".docx"):
-        output += ".docx"
-    translated_doc.save(output)
+    if output_path.suffix.lower() != ".docx":
+        output_path = output_path.parent / (output_path.name + ".docx")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    translated_doc.save(str(output_path))

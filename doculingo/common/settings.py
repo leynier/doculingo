@@ -7,4 +7,4 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
 
 
-settings = Settings()  # type: ignore
+settings = Settings()
