@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import typer
 from docx import Document
 from pytest import MonkeyPatch
 from typer.testing import CliRunner
@@ -22,8 +23,11 @@ def test_word_help_without_api_key(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     result = runner.invoke(app, ["word", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
-    assert "--model" in result.output
-    assert "--retries" in result.output
+
+    word_command = typer.main.get_command(app).commands["word"]
+    option_names = {param.name for param in word_command.params}
+    assert "model" in option_names
+    assert "retries" in option_names
 
 
 def test_word_translation_error_exits_non_zero(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
